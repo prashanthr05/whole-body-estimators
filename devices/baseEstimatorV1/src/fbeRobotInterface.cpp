@@ -356,6 +356,7 @@ bool yarp::dev::baseEstimatorV1::readEncoders(bool verbose)
     {
         yWarning() << "floatingBaseEstimatorV1: " << "unable to read from encoders interface properly";
     }
+
     if (m_use_lpf)
     {
         if (!m_device_initialized_correctly)
@@ -376,6 +377,24 @@ bool yarp::dev::baseEstimatorV1::readEncoders(bool verbose)
             iDynTree::toiDynTree(filtered_velocities, m_joint_velocities);
         }
     }
+    else if (m_use_jointvel_awest)
+    {
+
+        if (!m_device_initialized_correctly)
+        {
+            m_joint_velocity_awestimator = std::make_unique<iCub::ctrl::AWLinEstimator>(m_jointvel_estimator_N, m_jointvel_estimator_D);
+        }
+
+        yarp::sig::Vector joint_pos(m_joint_positions.size());
+        iDynTree::toYarp(m_joint_positions, joint_pos);
+        iCub::ctrl::AWPolyElement el(joint_pos, yarp::os::Time::now());
+        yarp::sig::Vector estimated_velocities = m_joint_velocity_awestimator->estimate(el);
+        if (estimated_velocities.size() == m_joint_velocities.size())
+        {
+            iDynTree::toiDynTree(estimated_velocities, m_joint_velocities);
+        }
+    }
+
     convertVectorFromDegreesToRadians(m_joint_positions);
     convertVectorFromDegreesToRadians(m_joint_velocities);
     return encoders_read_correctly;

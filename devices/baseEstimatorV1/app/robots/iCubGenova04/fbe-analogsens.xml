@@ -1,7 +1,7 @@
 <!--
   Copyright (C) 2019 Istituto Italiano di Tecnologia (IIT)
   All rights reserved.
- 
+
   This software may be modified and distributed under the terms of the
   GNU Lesser General Public License v2.1 or any later version.
  -->
@@ -18,11 +18,14 @@
         <param name="right_foot_ft_sensor">r_foot_ft_sensor</param>
 
         <param name="publish_debug_ports">false</param>
-	<param name="dump_data">false</param>
-	<param name="use_low_pass_filters">true</param>
+        <param name="dump_data">false</param>
+        <param name="use_low_pass_filters">false</param>
         <param name="joint_vel_lpf_cutoff_freq">3.0</param>
 
-	
+        <param name="use_jointvel_awest">true</param>
+        <param name="jointvel_estimator_N">16</param>
+        <param name="jointvel_estimator_D">1.0</param>
+
         <!-- legged odom parameters -->
         <param name="initial_fixed_frame">l_sole</param>
         <param name="initial_reference_frame_for_world">l_sole</param>

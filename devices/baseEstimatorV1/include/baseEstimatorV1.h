@@ -40,6 +40,7 @@
 #include <thrifts/floatingBaseEstimationRPC.h>
 
 #include <iCub/ctrl/filters.h>
+#include <iCub/ctrl/adaptWinPolyEstimator.h>
 
 inline double deg2rad(const double angleInDeg)
 {
@@ -619,6 +620,11 @@ namespace yarp {
         double m_joint_vel_filter_cutoff_freq{0.0};
         double m_joint_vel_filter_sample_time_in_s{0.0};
         bool m_use_lpf{false};
+
+        std::unique_ptr<iCub::ctrl::AWLinEstimator> m_joint_velocity_awestimator;
+        unsigned int m_jointvel_estimator_N{16};    // max window length
+        double m_jointvel_estimator_D{1.0};   // threshold
+        bool m_use_jointvel_awest{false};
     };
     }
 }

@@ -170,6 +170,19 @@ bool yarp::dev::baseEstimatorV1::loadEstimatorParametersFromConfig(const yarp::o
         m_joint_vel_filter_sample_time_in_s = m_device_period_in_s;
     }
 
+    m_use_jointvel_awest = config.check("use_jointvel_awest", yarp::os::Value(false)).asBool();
+    if (m_use_lpf == true && m_use_jointvel_awest == true)
+    {
+        yError() << "floatingBaseEstimatorV1: " << "You can either set use_lpf or use_jointvel_awest to true at a time, not both";
+        return false;
+    }
+
+    if (m_use_jointvel_awest)
+    {
+        m_jointvel_estimator_N = config.check("jointvel_estimator_N", yarp::os::Value(16.0)).asInt();
+        m_jointvel_estimator_D = config.check("jointvel_estimator_D", yarp::os::Value(1.0)).asDouble();
+    }
+
     return ok;
 }
 
