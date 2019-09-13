@@ -7,7 +7,8 @@
  -->
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE robot PUBLIC "-//YARP//DTD yarprobotinterface 3.0//EN" "http://www.yarp.it/DTD/yarprobotinterfaceV3.0.dtd">
-<robot name="iCubGazeboV2_5" build="1" portprefix="baseestimation">
+<!--<robot name="iCubGenova04" build="1" portprefix="baseestimation">-->
+<robot name="iCubGenova04" portprefix="baseestimation" build="1"  xmlns:xi="http://www.w3.org/2001/XInclude">
     <!-- open control boards -->
     <device name="torso_mc" type="remote_controlboard">
         <param name="remote">/icub/torso</param>
@@ -43,10 +44,14 @@
     </device>
 
     <!-- open imu -->
-   <device name="inertial" type="genericSensorClient">
+    <!-- <device name="inertial" type="genericSensorClient">
         <param name="remote">/icub/xsens_inertial</param>
         <param name="local">/baseestimation/waist/imu:i</param>
-    </device>
+</device> -->
+<device name="inertial" type="genericSensorClient">
+	<param name="remote">/icub/inertial</param>
+	<param name="local">/baseestimation/head/imu:i</param>
+</device>
 
     <!-- open FT sens -->
     <device name="left_upper_arm_strain" type="analogsensorclient">
@@ -88,6 +93,7 @@
         <param name="transforms_lifetime">0.2</param>
     </device>
 
-    <devices file="fbe-analogsens.xml" />
+    <!--<devices file="fbe-analogsens.xml" />-->
+    <xi:include href="estimators/fbe-analogsens.xml" />
 </robot>
 

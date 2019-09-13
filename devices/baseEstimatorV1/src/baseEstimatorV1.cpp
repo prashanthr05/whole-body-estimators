@@ -626,7 +626,7 @@ void yarp::dev::baseEstimatorV1::publishIMUAttitudeQEKFEstimates()
 
 void yarp::dev::baseEstimatorV1::publishTransform()
 {
-    m_transform_interface->setTransform(m_base_link_name, "world", m_world_H_base);
+    m_transform_interface->setTransform("icub04/root_link", "world", m_world_H_base);
 }
 
 bool yarp::dev::baseEstimatorV1::initializeLogger()

@@ -486,13 +486,15 @@ bool yarp::dev::baseEstimatorV1::openComms()
         return false;
     }
 
-    floatingBaseEstimationRPC::yarp().attachAsServer(m_estimator_rpc_port);
+    //floatingBaseEstimationRPC::yarp().attachAsServer(m_estimator_rpc_port);
     ok = m_estimator_rpc_port.open(m_port_prefix + "/rpc");
     if (!ok)
     {
         yError() << "floatingBaseEstimatorV1: " << "could not open port " << m_port_prefix + "rpc";
         return false;
     }
+    floatingBaseEstimationRPC::yarp().attachAsServer(m_estimator_rpc_port);
+    yInfo() << "---------------------> opening communications";
 
     return true;
 }
