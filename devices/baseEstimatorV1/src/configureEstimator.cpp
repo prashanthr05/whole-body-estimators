@@ -216,6 +216,7 @@ bool yarp::dev::baseEstimatorV1::loadEstimatorParametersFromConfig(const yarp::o
 
     m_use_imu_orientation_direct = config.check("use_imu_measurements_direct", yarp::os::Value(false)).asBool();
     m_use_feet_imu = config.check("use_feet_imu", yarp::os::Value(false)).asBool();
+    m_use_multiple_analog_sensor_interface = config.check("use_mas_interface", yarp::os::Value(false)).asBool();
 
     if (m_use_feet_imu)
     {
