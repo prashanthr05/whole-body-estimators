@@ -90,7 +90,7 @@
             <!-- imu -->
                 <elem name="head_imu_acc_1x1">inertial</elem>
 <!--                 <elem name="root_link_imu_acc">xsens_inertial</elem> -->
-                <elam name="inertialMASremapper">inertialMASremapper</elem>
+                <elem name="inertialMASremapper">inertialMASremapper</elem>
             <!-- f/t sensors -->
                 <elem name="l_arm_ft_sensor">left_upper_arm_strain</elem>
                 <elem name="r_arm_ft_sensor">right_upper_arm_strain</elem>
