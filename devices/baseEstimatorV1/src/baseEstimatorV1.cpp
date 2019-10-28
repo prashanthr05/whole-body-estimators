@@ -46,6 +46,11 @@ void yarp::dev::baseEstimatorV1::resizeBuffers()
     m_left_foot_cartesian_wrench.resize(6);
     m_right_foot_cartesian_wrench.resize(6);
 
+    m_world_l_foot_pose_in_R6.resize(6);
+    m_world_r_foot_pose_in_R6.resize(6);
+
+    m_feet_imu_confidence.resize(3);
+
     // wbd contact wrenches, ft sensors and imu measurement buffers are resized in the respective attach methods.
 }
 
@@ -276,6 +281,17 @@ bool yarp::dev::baseEstimatorV1::updateLeggedOdometry()
     yarp::eigen::toEigen(m_world_pose_base_in_R6).block<3,1>(3,0) =  iDynTree::toEigen(w_H_b.getRotation().asRPY());
     iDynTree::toYarp(w_H_b.asHomogeneousTransform(), m_world_H_base);
 
+    auto l_foot_idx{m_legged_odometry->model().getLinkIndex(m_left_sole)};
+    auto r_foot_idx{m_legged_odometry->model().getLinkIndex(m_right_sole)};
+    auto w_H_lf{m_legged_odometry->getWorldLinkTransform(l_foot_idx)};
+    auto w_H_rf{m_legged_odometry->getWorldLinkTransform(r_foot_idx)};
+    yarp::eigen::toEigen(m_world_l_foot_pose_in_R6).block<3,1>(0,0) =  iDynTree::toEigen(w_H_lf.getPosition());
+    yarp::eigen::toEigen(m_world_l_foot_pose_in_R6).block<3,1>(3,0) =  iDynTree::toEigen(w_H_lf.getRotation().asRPY());
+    yarp::eigen::toEigen(m_world_r_foot_pose_in_R6).block<3,1>(0,0) =  iDynTree::toEigen(w_H_rf.getPosition());
+    yarp::eigen::toEigen(m_world_r_foot_pose_in_R6).block<3,1>(3,0) =  iDynTree::toEigen(w_H_rf.getRotation().asRPY());
+    iDynTree::toYarp(w_H_lf.asHomogeneousTransform(), m_world_H_lf);
+    iDynTree::toYarp(w_H_rf.asHomogeneousTransform(), m_world_H_rf);
+
     return m_legged_odometry_update_went_well;
 }
 
@@ -389,6 +405,7 @@ bool yarp::dev::baseEstimatorV1::alignIMUFrames()
     setRobotStateWithZeroBaseVelocity();
     iDynTree::Rotation b_R_imu = m_kin_dyn_comp.getRelativeTransform(m_base_link_name, m_imu_name).getRotation();
     iDynTree::Rotation wIMU_R_IMU_0;
+
     if (m_use_imu_orientation_direct)
     {
         for (size_t imu = 0; imu < m_nr_of_IMUs_detected; imu++)
@@ -418,7 +435,57 @@ bool yarp::dev::baseEstimatorV1::alignIMUFrames()
         }
     }
     iDynTree::Rotation w_R_b =  iDynTree::Rotation::RPY(m_world_pose_base_in_R6(3), m_world_pose_base_in_R6(4), m_world_pose_base_in_R6(5));
-    m_imu_calibration_matrix = w_R_b*b_R_imu*wIMU_R_IMU_0.inverse();
+    m_imu_alignment_matrix = w_R_b*b_R_imu*wIMU_R_IMU_0.inverse();
+
+    // align feet imu matrices
+    if (m_use_feet_imu)
+    {
+        for (auto& foot_imu : m_feet_imu_accelerometers)
+        {
+            for (size_t imu = 0; imu < m_nr_of_IMUs_detected; imu++)
+            {
+                if (m_raw_IMU_measurements[imu].sensor_name == foot_imu)
+                {
+                    auto imu_link{m_model.getLinkName(m_model.getFrameIndex(foot_imu))};
+                    iDynTree::Rotation imulink_R_imu = m_kin_dyn_comp.getRelativeTransform(imu_link, foot_imu).getRotation();
+
+                    // dirty check : check if first letter is l or r to see left foot or right foot - sorry for this quick hack!
+                    // however this obliges urdf naming conventions
+                    if (foot_imu.at(0) == 'l')
+                    {
+                        auto foot_link{m_model.getLinkName(m_model.getFrameIndex(m_left_sole))};
+                        auto footlink_R_imulink = m_kin_dyn_comp.getRelativeTransform(foot_link, imu_link).getRotation();
+                        iDynTree::Rotation f_R_imu = footlink_R_imulink*imulink_R_imu;
+                        auto left_foot_wimu_R_imu_0 = iDynTree::Rotation::RPY(m_raw_IMU_measurements[imu].orientation(0),
+                                                                    m_raw_IMU_measurements[imu].orientation(1),
+                                                                    m_raw_IMU_measurements[imu].orientation(2));
+
+                        iDynTree::Rotation w_R_lf =  iDynTree::Rotation::RPY(m_world_l_foot_pose_in_R6(3),
+                                                                       m_world_l_foot_pose_in_R6(4),
+                                                                       m_world_l_foot_pose_in_R6(5));
+                        m_l_foot_imu_alignment_matrix = w_R_lf*f_R_imu*left_foot_wimu_R_imu_0.inverse();
+
+                    }
+                    else if (foot_imu.at(0) == 'r')
+                    {
+                        auto foot_link{m_model.getLinkName(m_model.getFrameIndex(m_right_sole))};
+                        auto footlink_R_imulink = m_kin_dyn_comp.getRelativeTransform(foot_link, imu_link).getRotation();
+                        iDynTree::Rotation f_R_imu = footlink_R_imulink*imulink_R_imu;
+                        auto right_foot_wimu_R_imu_0 = iDynTree::Rotation::RPY(m_raw_IMU_measurements[imu].orientation(0),
+                                                                    m_raw_IMU_measurements[imu].orientation(1),
+                                                                    m_raw_IMU_measurements[imu].orientation(2));
+
+                        iDynTree::Rotation w_R_rf =  iDynTree::Rotation::RPY(m_world_r_foot_pose_in_R6(3),
+                                                                       m_world_r_foot_pose_in_R6(4),
+                                                                       m_world_r_foot_pose_in_R6(5));
+                        m_r_foot_imu_alignment_matrix = w_R_rf*f_R_imu*right_foot_wimu_R_imu_0.inverse();
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
     return true;
 }
 
@@ -463,7 +530,60 @@ iDynTree::Rotation yarp::dev::baseEstimatorV1::getBaseOrientationFromIMU()
         wIMU_R_b = wIMU_R_IMU*IMU_R_b;
     }
 
-    return (m_imu_calibration_matrix * wIMU_R_b);
+    return (m_imu_alignment_matrix * wIMU_R_b);
+}
+
+iDynTree::Rotation yarp::dev::baseEstimatorV1::getFootOrientationFromIMU(const char& l_or_r)
+{
+    iDynTree::Rotation w_R_f;
+    setRobotStateWithZeroBaseVelocity();
+    for (auto& foot_imu : m_feet_imu_accelerometers)
+    {
+        bool found{false};
+        for (size_t imu = 0; imu < m_nr_of_IMUs_detected; imu++)
+        {
+            if (m_raw_IMU_measurements[imu].sensor_name.at(0) != l_or_r)
+            {
+                continue;
+            }
+
+            if (m_raw_IMU_measurements[imu].sensor_name == foot_imu)
+            {
+                    // dirty check : check if first letter is l or r to see left foot or right foot - sorry for this quick hack!
+                    // however this obliges urdf naming conventions
+                    auto imu_link{m_model.getLinkName(m_model.getFrameIndex(foot_imu))};
+                    iDynTree::Rotation imulink_R_imu = m_kin_dyn_comp.getRelativeTransform(imu_link, foot_imu).getRotation();
+
+                    iDynTree::Rotation f_R_imu;
+                    auto wIMU_R_IMU = iDynTree::Rotation::RPY(m_raw_IMU_measurements[imu].orientation(0),
+                                                            m_raw_IMU_measurements[imu].orientation(1),
+                                                            m_raw_IMU_measurements[imu].orientation(2));
+                    if (l_or_r == 'l')
+                    {
+                        auto foot_link{m_model.getLinkName(m_model.getFrameIndex(m_left_sole))};
+                        auto footlink_R_imulink = m_kin_dyn_comp.getRelativeTransform(foot_link, imu_link).getRotation();
+                        f_R_imu = footlink_R_imulink*imulink_R_imu;
+                        w_R_f = m_l_foot_imu_alignment_matrix*wIMU_R_IMU*f_R_imu.inverse();
+                    }
+                    else if (l_or_r == 'r')
+                    {
+                        auto foot_link{m_model.getLinkName(m_model.getFrameIndex(m_right_sole))};
+                        auto footlink_R_imulink = m_kin_dyn_comp.getRelativeTransform(foot_link, imu_link).getRotation();
+                        f_R_imu = footlink_R_imulink*imulink_R_imu;
+                        w_R_f = m_r_foot_imu_alignment_matrix*wIMU_R_IMU*f_R_imu.inverse();
+                    }
+                    found = true;
+                    break;
+                }
+
+                if (found)
+                {
+                    break;
+                }
+            }
+        }
+
+    return w_R_f;
 }
 
 bool yarp::dev::baseEstimatorV1::updateBasePoseWithIMUEstimates()
@@ -509,6 +629,44 @@ bool yarp::dev::baseEstimatorV1::updateBasePoseWithIMUEstimates()
     yarp::eigen::toEigen(m_world_pose_base_in_R6).block<3,1>(0,0) =  iDynTree::toEigen(w_H_b.getPosition());
     yarp::eigen::toEigen(m_world_pose_base_in_R6).block<3,1>(3,0) =  iDynTree::toEigen(w_H_b.getRotation().asRPY());
     iDynTree::toYarp(w_H_b.asHomogeneousTransform(), m_world_H_base);
+
+    return true;
+}
+
+bool yarp::dev::baseEstimatorV1::updateFeetPoseWithIMUEstimates()
+{
+    double updated_roll;
+    double updated_pitch;
+
+    char foot{'l'};
+    iDynTree::Rotation w_R_lf_imu = getFootOrientationFromIMU(foot);
+    double weight_imu_on_roll{m_feet_imu_confidence(0)}, weight_imu_on_pitch{m_feet_imu_confidence(1)};
+
+    // update lf rotation
+    updated_roll = weight_imu_on_roll*w_R_lf_imu.asRPY()(0) + (1 - weight_imu_on_roll) * m_world_l_foot_pose_in_R6(3);
+    updated_pitch = weight_imu_on_pitch*w_R_lf_imu.asRPY()(1) + (1 - weight_imu_on_pitch)* m_world_l_foot_pose_in_R6(4);
+    iDynTree::Rotation w_R_lf = iDynTree::Rotation::RPY(updated_roll, updated_pitch, m_world_l_foot_pose_in_R6(5));
+    iDynTree::Transform w_H_lf;
+    iDynTree::toiDynTree(m_world_H_lf, w_H_lf);
+    w_H_lf.setRotation(w_R_lf);
+
+    yarp::eigen::toEigen(m_world_l_foot_pose_in_R6).block<3,1>(3,0) =  iDynTree::toEigen(w_H_lf.getRotation().asRPY());
+    iDynTree::toYarp(w_H_lf.asHomogeneousTransform(), m_world_H_lf);
+
+    foot = 'r';
+    iDynTree::Rotation w_R_rf_imu = getFootOrientationFromIMU(foot);
+
+    // update rf rotation
+    updated_roll = weight_imu_on_roll*w_R_rf_imu.asRPY()(0) + (1 - weight_imu_on_roll) * m_world_r_foot_pose_in_R6(3);
+    updated_pitch = weight_imu_on_pitch*w_R_rf_imu.asRPY()(1) + (1 - weight_imu_on_pitch)* m_world_r_foot_pose_in_R6(4);
+    iDynTree::Rotation w_R_rf = iDynTree::Rotation::RPY(updated_roll, updated_pitch, m_world_r_foot_pose_in_R6(5));
+    iDynTree::Transform w_H_rf;
+    iDynTree::toiDynTree(m_world_H_rf, w_H_rf);
+
+    w_H_rf.setRotation(w_R_rf);
+
+    yarp::eigen::toEigen(m_world_r_foot_pose_in_R6).block<3,1>(3,0) =  iDynTree::toEigen(w_H_rf.getRotation().asRPY());
+    iDynTree::toYarp(w_H_rf.asHomogeneousTransform(), m_world_H_rf);
 
     return true;
 }
@@ -599,7 +757,7 @@ bool yarp::dev::baseEstimatorV1::updateBaseVelocityWithIMU()
         m_imu_attitude_qekf->getInternalState(state_buffer);
     }
 
-    iDynTree::Rotation w_R_IMU = m_imu_calibration_matrix*wIMU_R_IMU;
+    iDynTree::Rotation w_R_IMU = m_imu_alignment_matrix*wIMU_R_IMU;
     iDynTree::Vector3 gravity;
     gravity.zero();
     gravity(2) = -9.8;
@@ -666,6 +824,19 @@ void yarp::dev::baseEstimatorV1::publishContactState()
     m_contact_state_port.write();
 }
 
+void yarp::dev::baseEstimatorV1::publishFootPose()
+{
+    yarp::os::Bottle &lf_bottle = m_left_foot_pose_port.prepare();
+    yarp::os::Bottle &rf_bottle = m_right_foot_pose_port.prepare();
+    lf_bottle.clear(); rf_bottle.clear();
+    for (unsigned int i = 0; i < m_world_l_foot_pose_in_R6.size(); i++)
+    {
+        lf_bottle.addDouble(m_world_l_foot_pose_in_R6[i]);
+        rf_bottle.addDouble(m_world_r_foot_pose_in_R6[i]);
+    }
+    m_left_foot_pose_port.write();
+    m_right_foot_pose_port.write();
+}
 
 void yarp::dev::baseEstimatorV1::publishIMUAttitudeEstimatorStates()
 {
@@ -723,6 +894,8 @@ void yarp::dev::baseEstimatorV1::publishIMUAttitudeQEKFEstimates()
 void yarp::dev::baseEstimatorV1::publishTransform()
 {
     m_transform_interface->setTransform(m_robot+"/"+m_base_link_name, "world", m_world_H_base);
+    m_transform_interface->setTransform(m_robot+"/"+m_base_link_name, "world", m_world_H_lf);
+    m_transform_interface->setTransform(m_robot+"/"+m_base_link_name, "world", m_world_H_rf);
 }
 
 bool yarp::dev::baseEstimatorV1::initializeLogger()
@@ -760,6 +933,7 @@ void yarp::dev::baseEstimatorV1::publish()
 {
     publishFloatingBasePoseVelocity();
     publishContactState();
+    publishFootPose();
 
     if (m_use_debug_ports)
     {
@@ -825,6 +999,7 @@ void yarp::dev::baseEstimatorV1::run()
             }
 
             updateBasePoseWithIMUEstimates();
+            updateFeetPoseWithIMUEstimates();
             updateBaseVelocity();
             //updateBaseVelocityWithIMU();
             publish();

@@ -24,6 +24,7 @@
         <param name="feet_imu_accelerometers">(l_lower_leg_ft_acc_3b13 r_lower_leg_ft_acc_3b14)</param>
         <param name="feet_imu_gyros">(l_lower_leg_ft_gyro_3b13 r_lower_leg_ft_gyro_3b14)</param>
         <param name="feet_imu_eul">(l_lower_leg_ft_eul_3b13 r_lower_leg_ft_eul_3b14)</param>
+        <param name="feet_imu_confidence">(1.0 1.0 0.0)</param>
 
         <param name="publish_debug_ports">false</param>
         <param name="dump_data">false</param>

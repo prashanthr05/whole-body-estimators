@@ -326,6 +326,7 @@ namespace yarp {
          * @return iDynTree::Rotation return w_R_b computed using IMU rotation estimates
          */
         iDynTree::Rotation getBaseOrientationFromIMU();
+        iDynTree::Rotation getFootOrientationFromIMU(const char& l_or_r);
 
         /**
          * @brief Get the home transform of the base to head IMU to be used for correcting the
@@ -378,6 +379,7 @@ namespace yarp {
          * @return true/false success/failure
          */
         bool updateBasePoseWithIMUEstimates();
+        bool updateFeetPoseWithIMUEstimates();
 
         /**
          * @brief compute the floating base velocity using
@@ -394,6 +396,7 @@ namespace yarp {
          * @return true/false success/failure
          */
         bool updateBaseVelocityWithIMU();
+
 
         bool setRobotStateWithZeroBaseVelocity();
 
@@ -426,6 +429,8 @@ namespace yarp {
          *        x y z roll pitch yaw vx vy vz omegax omegay omegaz
          */
         void publishFloatingBasePoseVelocity();
+
+        void publishFootPose();
 
         /**
          * @brief publish feet contact state through YARP port
@@ -571,6 +576,7 @@ namespace yarp {
         std::vector<std::string> m_feet_imu_eul;
         bool m_use_feet_imu{false};
         bool m_use_imu_orientation_direct{false};
+        yarp::sig::Vector m_feet_imu_confidence;
 
         iDynTree::SensorsMeasurements m_sensor_measurements;
 
@@ -602,10 +608,14 @@ namespace yarp {
         yarp::os::BufferedPort<yarp::os::Bottle> m_imu_attitude_observer_estimated_state_port; ///< port to publish rotation as RPY and IMU gyro bias
         yarp::os::BufferedPort<yarp::os::Bottle> m_imu_attitude_qekf_estimated_state_port; ///< port to publish rotation as RPY and IMU gyro bias
         yarp::os::Port m_estimator_rpc_port; ///< RPC port for service calls
+        yarp::os::BufferedPort<yarp::os::Bottle> m_left_foot_pose_port; ///< port to publish floating base pose plus joint positions
+        yarp::os::BufferedPort<yarp::os::Bottle> m_right_foot_pose_port; ///< port to publish floating base pose plus joint positions
 
         iDynTree::RPY m_imu_attitude_estimate_as_rpy;
 
-        iDynTree::Rotation m_imu_calibration_matrix;
+        iDynTree::Rotation m_l_foot_imu_alignment_matrix;
+        iDynTree::Rotation m_r_foot_imu_alignment_matrix;
+        iDynTree::Rotation m_imu_alignment_matrix;
         iDynTree::Transform m_imu_H_base_at_zero;
         bool m_imu_aligned{false};
         std::vector<std::string> m_head_to_base_joints_list;
@@ -620,6 +630,11 @@ namespace yarp {
         yarp::sig::Matrix m_world_H_base;  ///< Homogeneous transformation matrix from base to world reference frame
         yarp::sig::Vector m_world_velocity_base; ///< 6D vector velocity of floating base frame in the world reference frame
         yarp::sig::Vector m_world_velocity_base_from_imu;
+
+        yarp::sig::Matrix m_world_H_lf;  ///< Homogeneous transformation matrix from l_foot to world reference frame
+        yarp::sig::Matrix m_world_H_rf;  ///< Homogeneous transformation matrix from l_foot to world reference frame
+        yarp::sig::Vector m_world_l_foot_pose_in_R6; ///< 6D vector pose of l_foot in world reference frame
+        yarp::sig::Vector m_world_r_foot_pose_in_R6; ///< 6D vector pose of r_foot in world reference frame
 
         std::string m_left_foot_ft_sensor{"l_foot_ft_sensor"};
         unsigned int m_left_foot_ft_sensor_index, m_right_foot_ft_sensor_index;

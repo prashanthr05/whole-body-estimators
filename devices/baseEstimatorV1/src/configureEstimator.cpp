@@ -254,6 +254,22 @@ bool yarp::dev::baseEstimatorV1::loadEstimatorParametersFromConfig(const yarp::o
         {
             return false;
         }
+
+
+
+        yarp::os::Bottle* feet_imu_conf;
+        feet_imu_conf = config.find("feet_imu_confidence").asList();
+        if (feet_imu_conf == nullptr || feet_imu_conf->size() != 3)
+        {
+            m_feet_imu_confidence.resize(3);
+            m_feet_imu_confidence.zero();
+        }
+        else
+        {
+            m_feet_imu_confidence[0] = feet_imu_conf->get(0).asDouble();
+            m_feet_imu_confidence[1] = feet_imu_conf->get(1).asDouble();
+            m_feet_imu_confidence[2] = feet_imu_conf->get(2).asDouble();
+        }
     }
 
     return ok;
@@ -577,6 +593,20 @@ bool yarp::dev::baseEstimatorV1::openComms()
     if (!ok)
     {
         yError() << "floatingBaseEstimatorV1: " << "could not open port " << m_port_prefix + "rpc";
+        return false;
+    }
+
+    ok = m_left_foot_pose_port.open(m_port_prefix + "/l_foot/state:o");
+    if (!ok)
+    {
+        yError() << "floatingBaseEstimatorV1: " << "could not open port " << m_port_prefix + "/l_foot/state:o";
+        return false;
+    }
+
+    ok = m_right_foot_pose_port.open(m_port_prefix + "/r_foot/state:o");
+    if (!ok)
+    {
+        yError() << "floatingBaseEstimatorV1: " << "could not open port " << m_port_prefix + "/r_foot/state:o";
         return false;
     }
 
