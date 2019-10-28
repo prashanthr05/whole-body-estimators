@@ -255,20 +255,26 @@ bool yarp::dev::baseEstimatorV1::loadEstimatorParametersFromConfig(const yarp::o
             return false;
         }
 
-
-
-        yarp::os::Bottle* feet_imu_conf;
-        feet_imu_conf = config.find("feet_imu_confidence").asList();
-        if (feet_imu_conf == nullptr || feet_imu_conf->size() != 3)
+        m_feet_imu_confidence.resize(3);
+        if (config.check("feet_imu_confidence") && config.find("feet_imu_confidence").isList())
         {
-            m_feet_imu_confidence.resize(3);
-            m_feet_imu_confidence.zero();
+            yarp::os::Bottle* feet_imu_conf;
+            feet_imu_conf = config.find("feet_imu_confidence").asList();
+
+            if (feet_imu_conf == nullptr || feet_imu_conf->size() != 3)
+            {
+
+                m_feet_imu_confidence.zero();
+            }
+
+            for (auto idx = 0; idx < feet_imu_conf->size(); idx++)
+            {
+                m_feet_imu_confidence(idx) = feet_imu_conf->get(idx).asDouble();
+            }
         }
         else
         {
-            m_feet_imu_confidence[0] = feet_imu_conf->get(0).asDouble();
-            m_feet_imu_confidence[1] = feet_imu_conf->get(1).asDouble();
-            m_feet_imu_confidence[2] = feet_imu_conf->get(2).asDouble();
+            m_feet_imu_confidence.zero();
         }
     }
 

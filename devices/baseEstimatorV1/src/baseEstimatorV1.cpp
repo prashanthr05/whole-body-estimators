@@ -95,6 +95,7 @@ bool yarp::dev::baseEstimatorV1::open(yarp::os::Searchable& config)
     }
 
     m_state = FilterFSM::IDLE;
+
     return true;
 }
 
