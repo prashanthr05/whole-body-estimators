@@ -64,6 +64,7 @@ bool yarp::dev::baseEstimatorV1::attachAll(const yarp::dev::PolyDriverList& p)
         return false;
     }
 
+    yInfo() << "Attached Successfully";
     start();
     return true;
 }
@@ -167,8 +168,15 @@ bool yarp::dev::baseEstimatorV1::attachMultipleAnalogSensors(const yarp::dev::Po
     // at the moment handle only IMUs
     for (size_t dev_idx = 0; dev_idx < static_cast<size_t>(p.size()); dev_idx++)
     {
-        if ((p[dev_idx]->poly->view(m_mas_interfaces.accelerometers)) && (p[dev_idx]->poly->view(m_mas_interfaces.gyros)))
+        if ( (p[dev_idx]->poly->view(m_mas_interfaces.accelerometers) ) &&
+             ( p[dev_idx]->poly->view(m_mas_interfaces.gyros) ) &&
+             ( p[dev_idx]->poly->view(m_mas_interfaces.imu_orientation_sensors) )
+           )
         {
+            if ( (m_mas_interfaces.accelerometers != nullptr) &&
+                (m_mas_interfaces.gyros!= nullptr) &&
+                (m_mas_interfaces.imu_orientation_sensors != nullptr)
+            )
             ok = true;
             break;
         }
@@ -252,6 +260,7 @@ bool yarp::dev::baseEstimatorV1::attachMultipleAnalogSensors(const yarp::dev::Po
             return false;
         }
     }
+
     return true;
 }
 
@@ -483,7 +492,7 @@ bool yarp::dev::baseEstimatorV1::readIMUSensors(bool verbose)
                 }
             }
 
-            all_IMUs_read_correctly = all_IMUs_read_correctly && ok;
+//             all_IMUs_read_correctly = all_IMUs_read_correctly && ok;
         }
     }
 

@@ -46,8 +46,12 @@ void yarp::dev::baseEstimatorV1::resizeBuffers()
     m_left_foot_cartesian_wrench.resize(6);
     m_right_foot_cartesian_wrench.resize(6);
 
+    m_imu_attitude_estimate_as_rpy.zero();
+
     m_world_l_foot_pose_in_R6.resize(6);
     m_world_r_foot_pose_in_R6.resize(6);
+    m_world_H_lf.resize(4, 4);
+    m_world_H_rf.resize(4, 4);
 
     m_feet_imu_confidence.resize(3);
 
@@ -282,8 +286,8 @@ bool yarp::dev::baseEstimatorV1::updateLeggedOdometry()
     yarp::eigen::toEigen(m_world_pose_base_in_R6).block<3,1>(3,0) =  iDynTree::toEigen(w_H_b.getRotation().asRPY());
     iDynTree::toYarp(w_H_b.asHomogeneousTransform(), m_world_H_base);
 
-    auto l_foot_idx{m_legged_odometry->model().getLinkIndex(m_left_sole)};
-    auto r_foot_idx{m_legged_odometry->model().getLinkIndex(m_right_sole)};
+    auto l_foot_idx{m_legged_odometry->model().getLinkIndex("l_foot")};
+    auto r_foot_idx{m_legged_odometry->model().getLinkIndex("r_foot")};
     auto w_H_lf{m_legged_odometry->getWorldLinkTransform(l_foot_idx)};
     auto w_H_rf{m_legged_odometry->getWorldLinkTransform(r_foot_idx)};
     yarp::eigen::toEigen(m_world_l_foot_pose_in_R6).block<3,1>(0,0) =  iDynTree::toEigen(w_H_lf.getPosition());
@@ -447,14 +451,15 @@ bool yarp::dev::baseEstimatorV1::alignIMUFrames()
             {
                 if (m_raw_IMU_measurements[imu].sensor_name == foot_imu)
                 {
-                    auto imu_link{m_model.getLinkName(m_model.getFrameIndex(foot_imu))};
+                    auto imu_link_idx{m_model.getFrameLink(m_model.getFrameIndex(foot_imu))};
+                    auto imu_link{m_model.getLinkName(imu_link_idx)};
                     iDynTree::Rotation imulink_R_imu = m_kin_dyn_comp.getRelativeTransform(imu_link, foot_imu).getRotation();
 
                     // dirty check : check if first letter is l or r to see left foot or right foot - sorry for this quick hack!
                     // however this obliges urdf naming conventions
                     if (foot_imu.at(0) == 'l')
                     {
-                        auto foot_link{m_model.getLinkName(m_model.getFrameIndex(m_left_sole))};
+                        auto foot_link{"l_foot"};
                         auto footlink_R_imulink = m_kin_dyn_comp.getRelativeTransform(foot_link, imu_link).getRotation();
                         iDynTree::Rotation f_R_imu = footlink_R_imulink*imulink_R_imu;
                         auto left_foot_wimu_R_imu_0 = iDynTree::Rotation::RPY(m_raw_IMU_measurements[imu].orientation(0),
@@ -469,7 +474,7 @@ bool yarp::dev::baseEstimatorV1::alignIMUFrames()
                     }
                     else if (foot_imu.at(0) == 'r')
                     {
-                        auto foot_link{m_model.getLinkName(m_model.getFrameIndex(m_right_sole))};
+                        auto foot_link{"r_foot"};
                         auto footlink_R_imulink = m_kin_dyn_comp.getRelativeTransform(foot_link, imu_link).getRotation();
                         iDynTree::Rotation f_R_imu = footlink_R_imulink*imulink_R_imu;
                         auto right_foot_wimu_R_imu_0 = iDynTree::Rotation::RPY(m_raw_IMU_measurements[imu].orientation(0),
@@ -552,7 +557,8 @@ iDynTree::Rotation yarp::dev::baseEstimatorV1::getFootOrientationFromIMU(const c
             {
                     // dirty check : check if first letter is l or r to see left foot or right foot - sorry for this quick hack!
                     // however this obliges urdf naming conventions
-                    auto imu_link{m_model.getLinkName(m_model.getFrameIndex(foot_imu))};
+                    auto imu_link_idx{m_model.getFrameLink(m_model.getFrameIndex(foot_imu))};
+                    auto imu_link{m_model.getLinkName(imu_link_idx)};
                     iDynTree::Rotation imulink_R_imu = m_kin_dyn_comp.getRelativeTransform(imu_link, foot_imu).getRotation();
 
                     iDynTree::Rotation f_R_imu;
@@ -561,14 +567,14 @@ iDynTree::Rotation yarp::dev::baseEstimatorV1::getFootOrientationFromIMU(const c
                                                             m_raw_IMU_measurements[imu].orientation(2));
                     if (l_or_r == 'l')
                     {
-                        auto foot_link{m_model.getLinkName(m_model.getFrameIndex(m_left_sole))};
+                        auto foot_link{"l_foot"};
                         auto footlink_R_imulink = m_kin_dyn_comp.getRelativeTransform(foot_link, imu_link).getRotation();
                         f_R_imu = footlink_R_imulink*imulink_R_imu;
                         w_R_f = m_l_foot_imu_alignment_matrix*wIMU_R_IMU*f_R_imu.inverse();
                     }
                     else if (l_or_r == 'r')
                     {
-                        auto foot_link{m_model.getLinkName(m_model.getFrameIndex(m_right_sole))};
+                        auto foot_link{"r_foot"};
                         auto footlink_R_imulink = m_kin_dyn_comp.getRelativeTransform(foot_link, imu_link).getRotation();
                         f_R_imu = footlink_R_imulink*imulink_R_imu;
                         w_R_f = m_r_foot_imu_alignment_matrix*wIMU_R_IMU*f_R_imu.inverse();
@@ -895,8 +901,8 @@ void yarp::dev::baseEstimatorV1::publishIMUAttitudeQEKFEstimates()
 void yarp::dev::baseEstimatorV1::publishTransform()
 {
     m_transform_interface->setTransform(m_robot+"/"+m_base_link_name, "world", m_world_H_base);
-    m_transform_interface->setTransform(m_robot+"/"+m_base_link_name, "world", m_world_H_lf);
-    m_transform_interface->setTransform(m_robot+"/"+m_base_link_name, "world", m_world_H_rf);
+    m_transform_interface->setTransform(m_robot+"/l_foot", "world", m_world_H_lf);
+    m_transform_interface->setTransform(m_robot+"/r_foot", "world", m_world_H_rf);
 }
 
 bool yarp::dev::baseEstimatorV1::initializeLogger()
@@ -978,6 +984,7 @@ void yarp::dev::baseEstimatorV1::run()
             {
                 ok = initializeIMUAttitudeQEKF();
             }
+
             ok = alignIMUFrames();
             publish();
             if (m_dump_data)
@@ -985,6 +992,7 @@ void yarp::dev::baseEstimatorV1::run()
                 initializeLogger();
             }
             m_previous_fixed_frame = m_current_fixed_frame;
+            yInfo() << "Estimator initialized successfully";
             m_device_initialized_correctly = ok;
         }
         else
@@ -998,7 +1006,6 @@ void yarp::dev::baseEstimatorV1::run()
             {
                 updateIMUAttitudeQEKF();
             }
-
             updateBasePoseWithIMUEstimates();
             updateFeetPoseWithIMUEstimates();
             updateBaseVelocity();

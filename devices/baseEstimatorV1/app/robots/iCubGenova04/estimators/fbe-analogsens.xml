@@ -28,7 +28,7 @@
         <param name="feet_imu_confidence">(1.0 1.0 0.0)</param>
 
         <param name="publish_debug_ports">false</param>
-        <param name="dump_data">false</param>
+        <param name="dump_data">true</param>
 
         <param name="use_low_pass_filters">true</param>
         <param name="joint_vel_lpf_cutoff_freq">3.0</param>
@@ -40,7 +40,7 @@
         <param name="initial_reference_frame_xyzrpy_pose_world">(0 0 0 0 0 0)</param>
 
         <!-- attitude estimator general -->
-        <param name="use_imu_measurements_direct">false</param> <!-- attitude estimator runs only if this flag is false -->
+        <param name="use_imu_measurements_direct">true</param> <!-- attitude estimator runs only if this flag is false -->
         <param name="attitude_filter_type">qekf</param>  <!-- "qekf" or "mahony" -->
         <param name="initial_attitude_estimate_as_quaternion">(1.0 0.0 0.0 0.0)</param>
         <param name="imu_confidence_roll">1.0</param>
