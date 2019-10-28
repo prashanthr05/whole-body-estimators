@@ -28,6 +28,7 @@
 #include <yarp/dev/IEncoders.h>
 #include <yarp/dev/IAnalogSensor.h>
 #include <yarp/dev/GenericSensorInterfaces.h>
+#include <yarp/dev/MultipleAnalogSensorsInterfaces.h>
 #include <yarp/os/LogStream.h>
 #include <yarp/os/LockGuard.h>
 #include <yarp/eigen/Eigen.h>
@@ -546,7 +547,7 @@ namespace yarp {
         {
             iDynTree::Vector3 linear_proper_acceleration;
             iDynTree::Vector3 angular_velocity;
-            iDynTree::Vector3 angular_acceleration;
+            iDynTree::Vector3 orientation;
             bool sensor_status{true};
             std::string sensor_name;
         };
@@ -558,6 +559,19 @@ namespace yarp {
            yarp::dev::IEncoders *encs{nullptr};
         }m_remapped_control_board_interfaces;
 
+        // struct for remapper multiple analog sensor interfaces
+        struct
+        {
+            yarp::dev::IThreeAxisLinearAccelerometers* accelerometers;
+            yarp::dev::IThreeAxisGyroscopes* gyros;
+            yarp::dev::IOrientationSensors* imu_orientation_sensors;
+        }m_mas_interfaces;
+        std::vector<std::string> m_feet_imu_accelerometers;
+        std::vector<std::string> m_feet_imu_gyros;
+        std::vector<std::string> m_feet_imu_eul;
+        bool m_use_feet_imu{false};
+        bool m_use_imu_orientation_direct{false};
+
         iDynTree::SensorsMeasurements m_sensor_measurements;
 
         std::vector<yarp::dev::IGenericSensor*> m_whole_body_imu_interface; ///< generic sensor interface for maintaining IMU sensors across the whole body
@@ -568,7 +582,7 @@ namespace yarp {
         size_t m_nr_of_forcetorque_sensors_detected{0}; ///< number of FT sensors attached to the estimator device
 
         // YARP Buffers
-        std::vector<yarp::sig::Vector> m_imu_meaaurements_from_yarp_server; ///< YARP buffer for IMU measuremnts coming from different IMU sensors
+        std::vector<yarp::sig::Vector> m_imu_measurements_from_yarp_server; ///< YARP buffer for IMU measuremnts coming from different IMU sensors
         yarp::sig::Vector m_ft_measurements_from_yarp_server; ///< YARP buffer for FT measuremnts coming from different FT sensors
 
         // Estimation interfaces

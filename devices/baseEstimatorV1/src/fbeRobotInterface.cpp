@@ -43,27 +43,23 @@ bool yarp::dev::baseEstimatorV1::attachAll(const yarp::dev::PolyDriverList& p)
         return false;
     }
 
-    if (m_use_multiple_analog_sensor_interface)
-    {
-        if (!attachMultipleAnalogSensors(p))
-        {
-           yError() << "floatingBaseEstimatorV1: " <<  "Could not attach the multiple analog sensor interface";
-           return false;
-        }
-    }
-    else
-    {
-        if (!attachAllInertialMeasurementUnits(p))
-        {
-           yError() << "floatingBaseEstimatorV1: " <<  "Could not attach the inertial measurement units";
-           return false;
-        }
 
-        if (!attachAllForceTorqueSensors(p))
-        {
-           yError() << "floatingBaseEstimatorV1: " <<  "Could not attach the force-torque sensors";
-           return false;
-        }
+    if (!attachMultipleAnalogSensors(p))
+    {
+        yError() << "floatingBaseEstimatorV1: " <<  "Could not attach the multiple analog sensor interface";
+        return false;
+    }
+
+    if (!attachAllInertialMeasurementUnits(p))
+    {
+        yError() << "floatingBaseEstimatorV1: " <<  "Could not attach the inertial measurement units";
+        return false;
+    }
+
+    if (!attachAllForceTorqueSensors(p))
+    {
+        yError() << "floatingBaseEstimatorV1: " <<  "Could not attach the force-torque sensors";
+        return false;
     }
 
     start();
@@ -164,6 +160,96 @@ bool yarp::dev::baseEstimatorV1::loadEstimator()
 
 bool yarp::dev::baseEstimatorV1::attachMultipleAnalogSensors(const yarp::dev::PolyDriverList& p)
 {
+    bool ok{false};
+
+    // at the moment handle only IMUs
+    for (size_t dev_idx = 0; dev_idx < static_cast<size_t>(p.size()); dev_idx++)
+    {
+        if ((p[dev_idx]->poly->view(m_mas_interfaces.accelerometers)) && (p[dev_idx]->poly->view(m_mas_interfaces.gyros)))
+        {
+            ok = true;
+            break;
+        }
+    }
+
+    if (!ok)
+    {
+        return false;
+    }
+
+    auto nr_attached_acc{m_mas_interfaces.accelerometers->getNrOfThreeAxisLinearAccelerometers()};
+    auto nr_attached_gyro{m_mas_interfaces.gyros->getNrOfThreeAxisGyroscopes()};
+    auto nr_attached_eul{m_mas_interfaces.imu_orientation_sensors->getNrOfOrientationSensors()};
+
+    if (nr_attached_acc != nr_attached_gyro)
+    {
+        yError() << "Expecting same number of accelerometers and gyroscopes";
+        return false;
+    }
+
+    m_nr_of_IMUs_detected += nr_attached_acc;
+    for (auto& desired_acc : m_feet_imu_accelerometers)
+    {
+        bool acc_found{false};
+        for (size_t attached_idx = 0; attached_idx < nr_attached_acc; attached_idx++)
+        {
+            std::string attached_acc_name;
+            m_mas_interfaces.accelerometers->getThreeAxisLinearAccelerometerName(attached_idx, attached_acc_name);
+            if (attached_acc_name == desired_acc)
+            {
+                acc_found = true;
+                break;
+            }
+        }
+
+        if (!acc_found)
+        {
+            yError() << "The desired acceelerometers were not attached through the MAS interface";
+            return false;
+        }
+    }
+
+    for (auto& desired_gyro : m_feet_imu_gyros)
+    {
+        bool gyro_found{false};
+        for (size_t attached_idx = 0; attached_idx < nr_attached_acc; attached_idx++)
+        {
+            std::string attached_gyro_name;
+            m_mas_interfaces.gyros->getThreeAxisGyroscopeName(attached_idx, attached_gyro_name);
+            if (attached_gyro_name == desired_gyro)
+            {
+                gyro_found = true;
+                break;
+            }
+        }
+
+        if (!gyro_found)
+        {
+            yError() << "The desired gyroscopes were not attached through the MAS interface";
+            return false;
+        }
+    }
+
+    for (auto& desired_eul : m_feet_imu_eul)
+    {
+        bool eul_found{false};
+        for (size_t attached_idx = 0; attached_idx < nr_attached_eul; attached_idx++)
+        {
+            std::string attached_eul_name;
+            m_mas_interfaces.imu_orientation_sensors->getOrientationSensorName(attached_idx, attached_eul_name);
+            if (attached_eul_name == desired_eul)
+            {
+                eul_found = true;
+                break;
+            }
+        }
+
+        if (!eul_found)
+        {
+            yError() << "The desired orientation sensors were not attached through the MAS interface";
+            return false;
+        }
+    }
     return true;
 }
 
@@ -247,7 +333,9 @@ bool yarp::dev::baseEstimatorV1::attachAllInertialMeasurementUnits(const yarp::d
     }
 
     m_whole_body_imu_interface = imu_sensor_list;
-    m_nr_of_IMUs_detected = m_whole_body_imu_interface.size();
+    yInfo() << "After attaching MAS interface, nr of IMUs detected: " << m_nr_of_IMUs_detected;
+    m_nr_of_IMUs_detected += m_whole_body_imu_interface.size();
+    yInfo() << "After attaching analog sensor interface, nr of IMUs detected: " << m_nr_of_IMUs_detected;
 
     if (m_nr_of_IMUs_detected == 0)
     {
@@ -255,6 +343,19 @@ bool yarp::dev::baseEstimatorV1::attachAllInertialMeasurementUnits(const yarp::d
         return false;
     }
 
+    // handle mas accelerometers
+    auto nr_mas_acc{m_mas_interfaces.accelerometers->getNrOfThreeAxisLinearAccelerometers()};
+    if (m_nr_of_IMUs_detected != (m_whole_body_imu_interface.size() + nr_mas_acc))
+    {
+        yError() << "total number of attached imus (analog + MAS) do not match";
+        return false;
+    }
+
+    // append mas accelerometer names to the imu list
+    for (int idx = 0; idx < nr_mas_acc; idx++)
+    {
+        imu_sensor_name.push_back(m_feet_imu_accelerometers[idx]);
+    }
 
     m_raw_IMU_measurements.resize(m_nr_of_IMUs_detected);
     // check this so that we can get sensor transforms from idyntree
@@ -280,12 +381,14 @@ bool yarp::dev::baseEstimatorV1::attachAllInertialMeasurementUnits(const yarp::d
         m_raw_IMU_measurements[imu].sensor_name = imu_sensor_name[imu];
     }
 
-    // dry run of readIMUSensors() to check if all IMUs work and to initialize buffers
-    m_imu_meaaurements_from_yarp_server.resize(m_whole_body_imu_interface.size());
+    // done only for analog sensors here
+    m_imu_measurements_from_yarp_server.resize(m_whole_body_imu_interface.size());
     for (size_t imu; imu < (size_t)m_whole_body_imu_interface.size(); imu++)
     {
-        m_imu_meaaurements_from_yarp_server[imu].resize(m_nr_of_channels_in_YARP_IMU_sensor);
+        m_imu_measurements_from_yarp_server[imu].resize(m_nr_of_channels_in_YARP_IMU_sensor);
     }
+
+    // dry run of readIMUSensors() to check if all IMUs work and to initialize buffers
     bool verbose{false};
     if (!sensorReadDryRun(verbose, &yarp::dev::baseEstimatorV1::readIMUSensors))
     {
@@ -297,30 +400,77 @@ bool yarp::dev::baseEstimatorV1::attachAllInertialMeasurementUnits(const yarp::d
 bool yarp::dev::baseEstimatorV1::readIMUSensors(bool verbose)
 {
     bool all_IMUs_read_correctly{true};
-    for (size_t imu = 0; imu < m_nr_of_IMUs_detected; imu++)
+    for (size_t analog_imu = 0; analog_imu < m_whole_body_imu_interface.size(); analog_imu++)
     {
         // TODO: get sensor name and associated transformation matrix
         bool ok{true};
-        m_raw_IMU_measurements[imu].angular_acceleration.zero();
-        m_raw_IMU_measurements[imu].angular_velocity.zero();
-        m_raw_IMU_measurements[imu].linear_proper_acceleration.zero();
+        m_raw_IMU_measurements[analog_imu].orientation.zero();
+        m_raw_IMU_measurements[analog_imu].angular_velocity.zero();
+        m_raw_IMU_measurements[analog_imu].linear_proper_acceleration.zero();
 
-        ok =  m_whole_body_imu_interface[imu]->read(m_imu_meaaurements_from_yarp_server[imu]);
-        m_raw_IMU_measurements[imu].sensor_status = ok;
+        ok =  m_whole_body_imu_interface[analog_imu]->read(m_imu_measurements_from_yarp_server[analog_imu]);
+        m_raw_IMU_measurements[analog_imu].sensor_status = ok;
         if (!ok && verbose)
         {
-            yWarning() << "floatingBaseEstimatorV1: " << "unable to read from IMU sensor " << m_raw_IMU_measurements[imu].sensor_name << " correctly. using old measurements.";
+            yWarning() << "floatingBaseEstimatorV1: " << "unable to read from IMU sensor " << m_raw_IMU_measurements[analog_imu].sensor_name << " correctly. using old measurements.";
         }
 
         if (ok)
         {
-            m_raw_IMU_measurements[imu].angular_velocity(0) = deg2rad(m_imu_meaaurements_from_yarp_server[imu][6]);
-            m_raw_IMU_measurements[imu].angular_velocity(1) = deg2rad(m_imu_meaaurements_from_yarp_server[imu][7]);
-            m_raw_IMU_measurements[imu].angular_velocity(2) = deg2rad(m_imu_meaaurements_from_yarp_server[imu][8]);
+            m_raw_IMU_measurements[analog_imu].angular_velocity(0) = deg2rad(m_imu_measurements_from_yarp_server[analog_imu][6]);
+            m_raw_IMU_measurements[analog_imu].angular_velocity(1) = deg2rad(m_imu_measurements_from_yarp_server[analog_imu][7]);
+            m_raw_IMU_measurements[analog_imu].angular_velocity(2) = deg2rad(m_imu_measurements_from_yarp_server[analog_imu][8]);
 
-            m_raw_IMU_measurements[imu].linear_proper_acceleration(0) = m_imu_meaaurements_from_yarp_server[imu][3];
-            m_raw_IMU_measurements[imu].linear_proper_acceleration(1) = m_imu_meaaurements_from_yarp_server[imu][4];
-            m_raw_IMU_measurements[imu].linear_proper_acceleration(2) = m_imu_meaaurements_from_yarp_server[imu][5];
+            m_raw_IMU_measurements[analog_imu].linear_proper_acceleration(0) = m_imu_measurements_from_yarp_server[analog_imu][3];
+            m_raw_IMU_measurements[analog_imu].linear_proper_acceleration(1) = m_imu_measurements_from_yarp_server[analog_imu][4];
+            m_raw_IMU_measurements[analog_imu].linear_proper_acceleration(2) = m_imu_measurements_from_yarp_server[analog_imu][5];
+
+            m_raw_IMU_measurements[analog_imu].orientation(0) = deg2rad(m_imu_measurements_from_yarp_server[analog_imu][0]);
+            m_raw_IMU_measurements[analog_imu].orientation(1) = deg2rad(m_imu_measurements_from_yarp_server[analog_imu][1]);
+            m_raw_IMU_measurements[analog_imu].orientation(2) = deg2rad(m_imu_measurements_from_yarp_server[analog_imu][2]);
+        }
+
+        all_IMUs_read_correctly = all_IMUs_read_correctly && ok;
+    }
+
+    auto nr_analog_imu{m_whole_body_imu_interface.size()};
+    for (size_t mas_imu = 0; mas_imu < m_mas_interfaces.accelerometers->getNrOfThreeAxisLinearAccelerometers(); mas_imu++)
+    {
+        yarp::dev::MAS_status ok{yarp::dev::MAS_UNKNOWN};
+        auto mas_imu_idx{nr_analog_imu + mas_imu};
+        m_raw_IMU_measurements[mas_imu_idx].orientation.zero();
+        m_raw_IMU_measurements[mas_imu_idx].angular_velocity.zero();
+        m_raw_IMU_measurements[mas_imu_idx].linear_proper_acceleration.zero();
+
+        ok = m_mas_interfaces.accelerometers->getThreeAxisLinearAccelerometerStatus(mas_imu);
+        if (ok != yarp::dev::MAS_OK && verbose)
+        {
+            yWarning() << "floatingBaseEstimatorV1: " << "unable to read from MAS IMU sensor " << m_raw_IMU_measurements[mas_imu_idx].sensor_name << " correctly. using old measurements.";
+        }
+
+        double timestamp{0.0};
+        yarp::sig::Vector acc_meas, gyro_meas, orient_meas;
+        acc_meas.resize(3); gyro_meas.resize(3); orient_meas.resize(3);
+        if (ok)
+        {
+            m_mas_interfaces.accelerometers->getThreeAxisLinearAccelerometerMeasure(mas_imu, acc_meas, timestamp);
+            m_mas_interfaces.gyros->getThreeAxisGyroscopeMeasure(mas_imu, gyro_meas, timestamp);
+            m_mas_interfaces.imu_orientation_sensors->getOrientationSensorMeasureAsRollPitchYaw(mas_imu, orient_meas, timestamp);
+
+            for (int idx = 0; idx < 3; idx++)
+            {
+                m_raw_IMU_measurements[mas_imu_idx].orientation(0) = deg2rad(orient_meas(0));
+                m_raw_IMU_measurements[mas_imu_idx].orientation(1) = deg2rad(orient_meas(1));
+                m_raw_IMU_measurements[mas_imu_idx].orientation(2) = deg2rad(orient_meas(2));
+
+                m_raw_IMU_measurements[mas_imu_idx].angular_velocity(0) = deg2rad(gyro_meas(0));
+                m_raw_IMU_measurements[mas_imu_idx].angular_velocity(1) = deg2rad(gyro_meas(1));
+                m_raw_IMU_measurements[mas_imu_idx].angular_velocity(2) = deg2rad(gyro_meas(2));
+
+                m_raw_IMU_measurements[mas_imu_idx].linear_proper_acceleration(0) = acc_meas(0);
+                m_raw_IMU_measurements[mas_imu_idx].linear_proper_acceleration(1) = acc_meas(1);
+                m_raw_IMU_measurements[mas_imu_idx].linear_proper_acceleration(2) = acc_meas(2);
+            }
         }
 
         all_IMUs_read_correctly = all_IMUs_read_correctly && ok;

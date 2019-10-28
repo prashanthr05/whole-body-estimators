@@ -56,6 +56,30 @@
     </device>
     -->
 
+    <!-- open feet imu -->
+    <device name="left_leg_inertials" type="multipleanalogsensorsclient">
+        <param name="remote">/icub/left_leg/inertials</param>
+        <param name="local">/baseestimation/left_leg/inertials</param>
+    </device>
+
+    <device name="right_leg_inertials" type="multipleanalogsensorsclient">
+        <param name="remote">/icub/right_leg/inertials</param>
+        <param name="local">/baseestimation/right_leg/inertials</param>
+    </device>
+
+    <device xmlns:xi="http://www.w3.org/2001/XInclude" name="inertialMASremapper" type="multipleanalogsensorsremapper">
+        <action phase="startup" level="15" type="attach">
+                <paramlist name="networks">
+                    <elem name="left_leg_inertials">left_leg_inertials</elem>
+                    <elem name="right_leg_inertials">right_leg_inertials</elem>
+                </paramlist>
+        </action>
+        <action phase="shutdown" level="2" type="detach" />
+        <param name="OrientationSensorsNames">(l_lower_leg_ft_eul_3b13 r_lower_leg_ft_eul_3b14)</param>
+        <param name="ThreeAxisGyroscopesNames">(l_lower_leg_ft_gyro_3b13 r_lower_leg_ft_gyro_3b14)</param>
+        <param name="ThreeAxisLinearAccelerometersNames">(l_lower_leg_ft_acc_3b13  r_lower_leg_ft_acc_3b14)</param>
+    </device>
+
     <!-- open FT sens -->
     <device name="left_upper_arm_strain" type="analogsensorclient">
         <param name="remote"> /icub/left_arm/analog:o </param>

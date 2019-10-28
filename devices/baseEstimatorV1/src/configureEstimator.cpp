@@ -214,6 +214,48 @@ bool yarp::dev::baseEstimatorV1::loadEstimatorParametersFromConfig(const yarp::o
         m_joint_vel_filter_sample_time_in_s = m_device_period_in_s;
     }
 
+    m_use_imu_orientation_direct = config.check("use_imu_measurements_direct", yarp::os::Value(false)).asBool();
+    m_use_feet_imu = config.check("use_feet_imu", yarp::os::Value(false)).asBool();
+
+    if (m_use_feet_imu)
+    {
+        yarp::os::Value* feet_imu_gyros;
+        if(!config.check("feet_imu_gyros", feet_imu_gyros))
+        {
+            yError() <<  "floatingBaseEstimatorV1: " <<" Unable to find the left foot imu sensors";
+            return false;
+        }
+
+        if(!YarpHelper::yarpListToStringVector(feet_imu_gyros, m_feet_imu_gyros))
+        {
+            return false;
+        }
+
+        yarp::os::Value* feet_imu_accelerometers;
+        if(!config.check("feet_imu_accelerometers", feet_imu_accelerometers))
+        {
+            yError() <<  "floatingBaseEstimatorV1: " <<" Unable to find the right foot imu sensors";
+            return false;
+        }
+
+        if(!YarpHelper::yarpListToStringVector(feet_imu_accelerometers, m_feet_imu_accelerometers))
+        {
+            return false;
+        }
+
+        yarp::os::Value* feet_imu_orientation_sensors;
+        if(!config.check("feet_imu_eul", feet_imu_orientation_sensors))
+        {
+            yError() <<  "floatingBaseEstimatorV1: " <<" Unable to find the right foot imu sensors";
+            return false;
+        }
+
+        if(!YarpHelper::yarpListToStringVector(feet_imu_orientation_sensors, m_feet_imu_eul))
+        {
+            return false;
+        }
+    }
+
     return ok;
 }
 
