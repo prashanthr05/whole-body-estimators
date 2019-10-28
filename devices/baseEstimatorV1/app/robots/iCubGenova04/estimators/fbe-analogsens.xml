@@ -27,6 +27,7 @@
 
         <param name="publish_debug_ports">false</param>
         <param name="dump_data">false</param>
+
         <param name="use_low_pass_filters">true</param>
         <param name="joint_vel_lpf_cutoff_freq">3.0</param>
 
@@ -40,8 +41,8 @@
         <param name="use_imu_measurements_direct">false</param> <!-- attitude estimator runs only if this flag is false -->
         <param name="attitude_filter_type">qekf</param>  <!-- "qekf" or "mahony" -->
         <param name="initial_attitude_estimate_as_quaternion">(1.0 0.0 0.0 0.0)</param>
-        <param name="imu_confidence_roll">0.0</param>
-        <param name="imu_confidence_pitch">0.0</param>
+        <param name="imu_confidence_roll">1.0</param>
+        <param name="imu_confidence_pitch">1.0</param>
 
         <!-- attitude mahony filter parameters -->
         <param name="mahony_discretization_time_step_in_seconds">0.010</param>
@@ -64,11 +65,11 @@
 
         <!-- biped foot contact classifier parameters -->
         <param name="initial_primary_foot">right</param>
-        <param name="schmitt_stable_contact_make_time">0.5</param>
-        <param name="schmitt_stable_contact_break_time">0.5</param>
+        <param name="schmitt_stable_contact_make_time">0.1</param>
+        <param name="schmitt_stable_contact_break_time">0.1</param>
         <param name="left_schmitt_contact_make_force_threshold">130.0</param>
         <param name="left_schmitt_contact_break_force_threshold">25.0</param>
-        <param name="right_schmitt_contact_make_force_threshold">150.0</param>
+        <param name="right_schmitt_contact_make_force_threshold">130.0</param>
         <param name="right_schmitt_contact_break_force_threshold">25.0</param>
 
         <!-- whole body dynamics for getting contact forces -->

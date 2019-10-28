@@ -82,7 +82,7 @@ bool yarp::dev::baseEstimatorV1::open(yarp::os::Searchable& config)
     {
         m_logger = std::make_unique<WalkingLogger>();
         yarp::os::Bottle& loggerOptions = config.findGroup("LOGGER");
-        if (!m_logger->configure(loggerOptions, m_port_prefix))
+        if (!m_logger->configure(loggerOptions, "base-estimator"))
         {
             yError() << "[configure] Unable to configure the logger";
             return false;
