@@ -281,34 +281,53 @@ bool yarp::dev::baseEstimatorV1::updateLeggedOdometry()
 
 bool yarp::dev::baseEstimatorV1::updateIMUAttitudeEstimator()
 {
-    for (size_t imu = 0; imu < (size_t)m_whole_body_imu_interface.size(); imu++)
+    iDynTree::RPY rpy;
+    for (size_t imu = 0; imu < m_nr_of_IMUs_detected; imu++)
     {
         if (m_raw_IMU_measurements[imu].sensor_name == m_imu_name)
         {
             m_imu_attitude_observer->updateFilterWithMeasurements(m_raw_IMU_measurements[imu].linear_proper_acceleration,
                                                                   m_raw_IMU_measurements[imu].angular_velocity);
-
+            rpy = m_raw_IMU_measurements[imu].orientation;
             break;
         }
     }
 
     m_imu_attitude_observer->propagateStates();
-    m_imu_attitude_observer->getOrientationEstimateAsRPY(m_imu_attitude_estimate_as_rpy);
+
+    if (!m_use_imu_orientation_direct)
+    {
+        m_imu_attitude_observer->getOrientationEstimateAsRPY(m_imu_attitude_estimate_as_rpy);
+    }
+    else
+    {
+        m_imu_attitude_estimate_as_rpy = rpy;
+    }
     return true;
 }
 
 bool yarp::dev::baseEstimatorV1::updateIMUAttitudeQEKF()
 {
+    iDynTree::RPY rpy;
     m_imu_attitude_qekf->propagateStates();
-    for (size_t imu = 0; imu < (size_t)m_whole_body_imu_interface.size(); imu++)
+    for (size_t imu = 0; imu < m_nr_of_IMUs_detected; imu++)
     {
         if (m_raw_IMU_measurements[imu].sensor_name == m_imu_name)
         {
             m_imu_attitude_qekf->updateFilterWithMeasurements(m_raw_IMU_measurements[imu].linear_proper_acceleration,
                                                               m_raw_IMU_measurements[imu].angular_velocity);
-
+            rpy = m_raw_IMU_measurements[imu].orientation;
             break;
         }
+    }
+
+    if (!m_use_imu_orientation_direct)
+    {
+        m_imu_attitude_observer->getOrientationEstimateAsRPY(m_imu_attitude_estimate_as_rpy);
+    }
+    else
+    {
+        m_imu_attitude_estimate_as_rpy = rpy;
     }
     return true;
 }
@@ -370,17 +389,33 @@ bool yarp::dev::baseEstimatorV1::alignIMUFrames()
     setRobotStateWithZeroBaseVelocity();
     iDynTree::Rotation b_R_imu = m_kin_dyn_comp.getRelativeTransform(m_base_link_name, m_imu_name).getRotation();
     iDynTree::Rotation wIMU_R_IMU_0;
-    if (m_attitude_estimator_type == "qekf")
+    if (m_use_imu_orientation_direct)
     {
-        m_imu_attitude_qekf->getOrientationEstimateAsRotationMatrix(wIMU_R_IMU_0);
-    }
-    else if (m_attitude_estimator_type == "mahony")
-    {
-        m_imu_attitude_observer->getOrientationEstimateAsRotationMatrix(wIMU_R_IMU_0);
+        for (size_t imu = 0; imu < m_nr_of_IMUs_detected; imu++)
+        {
+            if (m_raw_IMU_measurements[imu].sensor_name == m_imu_name)
+            {
+                wIMU_R_IMU_0 = iDynTree::Rotation::RPY(m_raw_IMU_measurements[imu].orientation(0),
+                                                    m_raw_IMU_measurements[imu].orientation(1),
+                                                    m_raw_IMU_measurements[imu].orientation(2));
+                break;
+            }
+        }
     }
     else
     {
-        yError() << "floatingBaseEstimatorV1: " << "Not using any attitude estimator, cannot align IMU frames";
+        if (m_attitude_estimator_type == "qekf")
+        {
+            m_imu_attitude_qekf->getOrientationEstimateAsRotationMatrix(wIMU_R_IMU_0);
+        }
+        else if (m_attitude_estimator_type == "mahony")
+        {
+            m_imu_attitude_observer->getOrientationEstimateAsRotationMatrix(wIMU_R_IMU_0);
+        }
+        else
+        {
+            yError() << "floatingBaseEstimatorV1: " << "Not using any attitude estimator, cannot align IMU frames";
+        }
     }
     iDynTree::Rotation w_R_b =  iDynTree::Rotation::RPY(m_world_pose_base_in_R6(3), m_world_pose_base_in_R6(4), m_world_pose_base_in_R6(5));
     m_imu_calibration_matrix = w_R_b*b_R_imu*wIMU_R_IMU_0.inverse();
@@ -390,13 +425,29 @@ bool yarp::dev::baseEstimatorV1::alignIMUFrames()
 iDynTree::Rotation yarp::dev::baseEstimatorV1::getBaseOrientationFromIMU()
 {
     iDynTree::Rotation wIMU_R_IMU;
-    if (m_attitude_estimator_type == "mahony")
+    if (m_use_imu_orientation_direct)
     {
-        m_imu_attitude_observer->getOrientationEstimateAsRotationMatrix(wIMU_R_IMU);
+        for (size_t imu = 0; imu < m_nr_of_IMUs_detected; imu++)
+        {
+            if (m_raw_IMU_measurements[imu].sensor_name == m_imu_name)
+            {
+                wIMU_R_IMU = iDynTree::Rotation::RPY(m_raw_IMU_measurements[imu].orientation(0),
+                                                    m_raw_IMU_measurements[imu].orientation(1),
+                                                    m_raw_IMU_measurements[imu].orientation(2));
+                break;
+            }
+        }
     }
-    else if (m_attitude_estimator_type == "qekf")
+    else
     {
-        m_imu_attitude_qekf->getOrientationEstimateAsRotationMatrix(wIMU_R_IMU);
+        if (m_attitude_estimator_type == "mahony")
+        {
+            m_imu_attitude_observer->getOrientationEstimateAsRotationMatrix(wIMU_R_IMU);
+        }
+        else if (m_attitude_estimator_type == "qekf")
+        {
+            m_imu_attitude_qekf->getOrientationEstimateAsRotationMatrix(wIMU_R_IMU);
+        }
     }
 
     iDynTree::Rotation IMU_R_b = m_kin_dyn_comp.getRelativeTransform(m_imu_name, m_base_link_name).getRotation();
